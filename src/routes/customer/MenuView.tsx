@@ -8,7 +8,8 @@ import { buildUpiLink } from '../../upi/upiLink';
 import { buildWaOrderText, buildWaShareUrl } from '../../whatsapp/waMessage';
 import { siteRoot } from '../../lib/siteRoot';
 import type { Fulfillment, MealItem, MenuPayload, OrderPayload } from '../../model/types';
-import { appendHistory, readHistory, type HistoryEntry } from '../../state/customerHistory';
+import { appendHistory, readHistory, rememberKitchen, type HistoryEntry } from '../../state/customerHistory';
+import { navigate } from '../../lib/hashRoute';
 
 const REPEAT_KEY = 'hk-customer';
 
@@ -53,7 +54,16 @@ function MenuContent({ payload }: { payload: MenuPayload }) {
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [reorderNote, setReorderNote] = useState<string | null>(null);
-  useEffect(() => { setHistory(readHistory(kitchen.id)); }, [kitchen.id]);
+  useEffect(() => {
+    setHistory(readHistory(kitchen.id));
+    rememberKitchen({
+      kitchenId: kitchen.id,
+      kitchenName: kitchen.name,
+      whatsappPhone: kitchen.whatsappPhone,
+      lastMenuUrl: window.location.href,
+      lastSeenAt: new Date().toISOString()
+    });
+  }, [kitchen.id, kitchen.name, kitchen.whatsappPhone]);
 
   function reorder(entry: HistoryEntry) {
     clear();
@@ -80,16 +90,19 @@ function MenuContent({ payload }: { payload: MenuPayload }) {
   return (
     <div className="min-h-screen pb-32" style={{ background: 'linear-gradient(180deg, ' + themeColor + '14, #fafafa)' }}>
       <header className="max-w-2xl mx-auto px-4 pt-6 pb-4">
-        <div className="flex items-center gap-3">
-          {kitchen.logoUrl ? (
-            <img src={kitchen.logoUrl} alt="" className="w-14 h-14 rounded-2xl object-cover border border-white shadow" />
-          ) : (
-            <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl shadow" style={{ background: themeColor }}>🍱</div>
-          )}
-          <div>
-            <h1 className="text-2xl font-bold">{kitchen.name}</h1>
-            <div className="text-sm text-neutral-600">{kitchen.address}</div>
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            {kitchen.logoUrl ? (
+              <img src={kitchen.logoUrl} alt="" className="w-14 h-14 rounded-2xl object-cover border border-white shadow" />
+            ) : (
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl shadow" style={{ background: themeColor }}>🍱</div>
+            )}
+            <div className="min-w-0">
+              <h1 className="text-2xl font-bold truncate">{kitchen.name}</h1>
+              <div className="text-sm text-neutral-600 truncate">{kitchen.address}</div>
+            </div>
           </div>
+          <button onClick={() => navigate('/me')} className="text-xs text-neutral-500 hover:text-neutral-700 shrink-0 mt-1">My orders</button>
         </div>
         <div className="mt-3 flex items-center gap-2 flex-wrap text-sm">
           <Pill tone={isOpen && !cutoffPassed ? 'green' : 'red'}>

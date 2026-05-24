@@ -51,10 +51,16 @@ export function Landing() {
         <Bullet>Free to use. No accounts, no monthly fees, no commissions.</Bullet>
       </section>
 
-      <footer className="mt-12 border-t border-neutral-200 pt-6 text-center text-sm text-neutral-500">
+      <footer className="mt-12 border-t border-neutral-200 pt-6 text-center text-sm text-neutral-500 space-y-2">
         <p>
           <span className="font-medium text-neutral-700">Just here to order food?</span>{' '}
           Open the menu link your kitchen shared with you — this page is for kitchen owners.
+        </p>
+        <p>
+          Already ordered before?{' '}
+          <a href="#/me" onClick={(e) => { e.preventDefault(); navigate('/me'); }} className="text-brand-600 hover:text-brand-700">
+            See your past orders →
+          </a>
         </p>
       </footer>
     </div>

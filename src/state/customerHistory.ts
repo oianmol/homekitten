@@ -52,3 +52,56 @@ export function removeHistory(kitchenId: string, orderId: string): void {
     /* ignore */
   }
 }
+
+const PREFIX = 'hk-history:';
+
+export function readAllHistory(): HistoryEntry[] {
+  const out: HistoryEntry[] = [];
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k || !k.startsWith(PREFIX)) continue;
+      const raw = localStorage.getItem(k);
+      if (!raw) continue;
+      try {
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr)) out.push(...arr);
+      } catch { /* skip malformed */ }
+    }
+  } catch { /* ignore */ }
+  out.sort((a, b) => b.placedAt.localeCompare(a.placedAt));
+  return out;
+}
+
+export interface KitchenContact {
+  kitchenId: string;
+  kitchenName: string;
+  whatsappPhone?: string;
+  lastMenuUrl?: string;
+  lastSeenAt: string;
+}
+
+const CONTACTS_KEY = 'hk-customer-kitchens';
+
+export function rememberKitchen(c: KitchenContact): void {
+  try {
+    const existing = readKitchenContacts().filter((x) => x.kitchenId !== c.kitchenId);
+    const next = [c, ...existing].slice(0, 50);
+    localStorage.setItem(CONTACTS_KEY, JSON.stringify(next));
+  } catch { /* ignore */ }
+}
+
+export function readKitchenContacts(): KitchenContact[] {
+  try {
+    const raw = localStorage.getItem(CONTACTS_KEY);
+    if (!raw) return [];
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+}
+
+export function findKitchenContact(kitchenId: string): KitchenContact | undefined {
+  return readKitchenContacts().find((c) => c.kitchenId === kitchenId);
+}
