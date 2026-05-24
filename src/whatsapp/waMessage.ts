@@ -1,4 +1,4 @@
-import type { MealWindow, OrderPayload } from '../model/types';
+import type { MealWindow, Order, OrderPayload, OrderStatus } from '../model/types';
 import { paiseToRupees } from '../lib/currency';
 import { encodeOrder } from '../codec/orderCodec';
 
@@ -76,4 +76,30 @@ function formatTime(iso: string): string {
   } catch {
     return iso;
   }
+}
+
+const STATUS_MESSAGES: Record<OrderStatus, (kitchenName: string) => string> = {
+  imported: (k) => `Hi! ${k} received your order. We'll confirm shortly.`,
+  accepted: (k) => `Hi! ${k} has accepted your order. We'll start preparing soon.`,
+  preparing: (k) => `Your order is being prepared at ${k}.`,
+  ready: (k) => `Your order from ${k} is ready.`,
+  completed: (k) => `Thanks for ordering from ${k}! Hope you enjoyed the meal. ❤️`,
+  cancelled: (k) => `Sorry — your order at ${k} couldn't be fulfilled and has been cancelled.`
+};
+
+export interface BuildCustomerStatusMsgArgs {
+  kitchenName: string;
+  order: Pick<Order, 'customerName' | 'status' | 'totalPaise' | 'fulfillment' | 'items'>;
+}
+
+export function buildCustomerStatusMessage({ kitchenName, order }: BuildCustomerStatusMsgArgs): string {
+  const lines: string[] = [];
+  lines.push(`Hi ${order.customerName.split(' ')[0]},`);
+  lines.push('');
+  lines.push(STATUS_MESSAGES[order.status](kitchenName));
+  lines.push('');
+  const summary = order.items.map((l) => `${l.name} × ${l.qty}`).join(', ');
+  if (summary) lines.push(`Order: ${summary}`);
+  lines.push(`Total: ${paiseToRupees(order.totalPaise)} · ${order.fulfillment}`);
+  return lines.join('\n');
 }

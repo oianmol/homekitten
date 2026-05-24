@@ -6,6 +6,7 @@ import { extractOrderToken, decodeOrder } from '../../codec/orderCodec';
 import type { Order, OrderStatus, PaymentStatus } from '../../model/types';
 import { nowIso } from '../../lib/id';
 import { getBlob, putBlob } from '../../storage/stores';
+import { buildCustomerStatusMessage, buildWaShareUrl } from '../../whatsapp/waMessage';
 
 const NEXT_STATUS: Partial<Record<OrderStatus, OrderStatus>> = {
   imported: 'accepted',
@@ -111,7 +112,8 @@ export function OrdersView() {
                 <a className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl font-medium text-neutral-700 hover:bg-neutral-100"
                    href={`tel:${o.customerPhone}`}>Call</a>
                 <a className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl font-medium text-neutral-700 hover:bg-neutral-100"
-                   href={`https://wa.me/${o.customerPhone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer">WhatsApp</a>
+                   href={buildWaShareUrl(o.customerPhone, kitchen ? buildCustomerStatusMessage({ kitchenName: kitchen.name, order: o }) : '')}
+                   target="_blank" rel="noreferrer">WhatsApp</a>
               </div>
             </Card>
           ))}
