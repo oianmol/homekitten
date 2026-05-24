@@ -1,0 +1,8 @@
+# Cloudflare Pages auto-detects Vite via package.json, so this file is
+# optional. Use it only if you prefer Wrangler/Pages Functions later.
+# Build command:   npm run build
+# Build output:    dist
+# Root directory:  /
+name = "homekitten"
+compatibility_date = "2025-01-01"
+pages_build_output_dir = "dist"
