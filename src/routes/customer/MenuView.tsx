@@ -3,7 +3,7 @@ import { useCartStore } from '../../state/cartStore';
 import { decodeMenu } from '../../codec/menuCodec';
 import { Button, Card, Input, Modal, Pill, Textarea } from '../../components/ui';
 import { paiseToRupees } from '../../lib/currency';
-import { uuid, nowIso } from '../../lib/id';
+import { uuid, nowIso, orderCode } from '../../lib/id';
 import { buildUpiLink } from '../../upi/upiLink';
 import { buildWaOrderText, buildWaShareUrl } from '../../whatsapp/waMessage';
 import { siteRoot } from '../../lib/siteRoot';
@@ -227,7 +227,7 @@ function CheckoutModal({ payload, onClose, onPlaced }: {
   const [fulfillment, setFulfillment] = useState<Fulfillment>('pickup');
   const [address, setAddress] = useState(hint.address ?? '');
   const [notes, setNotes] = useState('');
-  const [placed, setPlaced] = useState<{ orderId: string; waUrl: string; upiUrl: string; text: string } | null>(null);
+  const [placed, setPlaced] = useState<{ orderId: string; code: string; waUrl: string; upiUrl: string; text: string } | null>(null);
 
   const deliveryFee = fulfillment === 'delivery' ? payload.meal.deliveryFeePaise : 0;
   const total = subtotal + deliveryFee;
@@ -276,14 +276,15 @@ function CheckoutModal({ payload, onClose, onPlaced }: {
     const origin = siteRoot();
     const text = buildWaOrderText({ origin, kitchenName: payload.kitchen.name, payload: orderPayload });
     const waUrl = buildWaShareUrl(payload.kitchen.whatsappPhone, text);
+    const code = orderCode(orderId);
     const upiUrl = buildUpiLink({
       payeeVpa: payload.kitchen.upiId,
       payeeName: payload.kitchen.name,
       amountPaise: total,
-      transactionNote: `HK ${orderId.slice(0, 6)}`,
-      transactionRef: orderId.slice(0, 12)
+      transactionNote: `Order ${code}`,
+      transactionRef: code
     });
-    setPlaced({ orderId, waUrl, upiUrl, text });
+    setPlaced({ orderId, code, waUrl, upiUrl, text });
   }
 
   if (placed) {
@@ -356,7 +357,7 @@ function AddToHomeButton({ kitchenName }: { kitchenName: string }) {
 }
 
 function PlacedView({ placed, total, onPlaced, onClose }: {
-  placed: { orderId: string; waUrl: string; upiUrl: string; text: string };
+  placed: { orderId: string; code: string; waUrl: string; upiUrl: string; text: string };
   total: number;
   onPlaced: () => void;
   onClose: () => void;
@@ -372,6 +373,11 @@ function PlacedView({ placed, total, onPlaced, onClose }: {
   return (
     <Modal open onClose={onClose} title="Order ready to send">
       <div className="space-y-3">
+        <div className="rounded-xl bg-brand-50 border border-brand-100 p-3 text-center">
+          <div className="text-xs uppercase tracking-wide text-brand-700">Your order code</div>
+          <div className="text-2xl font-bold text-brand-700 font-mono tracking-widest">{placed.code}</div>
+          <div className="text-xs text-neutral-600 mt-1">Share this with the kitchen if there's any payment question.</div>
+        </div>
         <p className="text-sm text-neutral-700">Send the order to the kitchen on WhatsApp, then pay via UPI.</p>
         <a href={placed.waUrl} target="_blank" rel="noreferrer"
           className="block w-full text-center px-4 py-3 rounded-xl font-medium bg-emerald-600 text-white hover:bg-emerald-700">
@@ -381,6 +387,9 @@ function PlacedView({ placed, total, onPlaced, onClose }: {
           className="block w-full text-center px-4 py-3 rounded-xl font-medium bg-brand text-white hover:bg-brand-600">
           2. Pay {paiseToRupees(total)} via UPI
         </a>
+        <p className="text-xs text-neutral-500 text-center">
+          UPI note will read <span className="font-mono">Order {placed.code}</span>.
+        </p>
         <div className="flex gap-2">
           <Button variant="secondary" onClick={() => copy('text')} className="flex-1">
             {copied === 'text' ? 'Copied ✓' : 'Copy WhatsApp text'}

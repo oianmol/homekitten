@@ -1,6 +1,7 @@
 import type { MealWindow, Order, OrderPayload, OrderStatus } from '../model/types';
 import { paiseToRupees } from '../lib/currency';
 import { encodeOrder } from '../codec/orderCodec';
+import { orderCode } from '../lib/id';
 
 export interface BuildWaOrderMsgArgs {
   origin: string;          // e.g. https://homekitten.app
@@ -10,8 +11,9 @@ export interface BuildWaOrderMsgArgs {
 
 export function buildWaOrderText({ origin, kitchenName, payload }: BuildWaOrderMsgArgs): string {
   const o = payload.order;
+  const code = orderCode(o.id);
   const lines: string[] = [];
-  lines.push(`🍱 Order for ${kitchenName}`);
+  lines.push(`🍱 Order ${code} for ${kitchenName}`);
   lines.push(`From: ${o.customerName} (${o.customerPhone})`);
   lines.push('');
   for (const l of o.items) {
@@ -24,6 +26,7 @@ export function buildWaOrderText({ origin, kitchenName, payload }: BuildWaOrderM
   lines.push(`Total: ${paiseToRupees(o.totalPaise)}`);
   lines.push(`Mode: ${o.fulfillment}${o.address ? ` — ${o.address}` : ''}`);
   if (o.notes) lines.push(`Notes: ${o.notes}`);
+  lines.push(`UPI note: Order ${code}`);
   lines.push('');
   lines.push('— Open in HomeKitten —');
   lines.push(`${origin}/#o=${encodeOrder(payload)}`);
@@ -92,11 +95,18 @@ export interface BuildCustomerStatusMsgArgs {
   order: Pick<Order, 'customerName' | 'status' | 'totalPaise' | 'fulfillment' | 'items'>;
 }
 
-export function buildCustomerStatusMessage({ kitchenName, order }: BuildCustomerStatusMsgArgs): string {
+export interface BuildCustomerStatusMsgArgsFull extends BuildCustomerStatusMsgArgs {
+  code?: string;
+}
+
+export function buildCustomerStatusMessage(args: BuildCustomerStatusMsgArgsFull | BuildCustomerStatusMsgArgs): string {
+  const { kitchenName, order } = args;
+  const code = (args as BuildCustomerStatusMsgArgsFull).code;
   const lines: string[] = [];
   lines.push(`Hi ${order.customerName.split(' ')[0]},`);
   lines.push('');
   lines.push(STATUS_MESSAGES[order.status](kitchenName));
+  if (code) lines.push(`Order ref: ${code}`);
   lines.push('');
   const summary = order.items.map((l) => `${l.name} × ${l.qty}`).join(', ');
   if (summary) lines.push(`Order: ${summary}`);

@@ -4,7 +4,7 @@ import { Button, Card, Modal, Pill, Textarea } from '../../components/ui';
 import { paiseToRupees } from '../../lib/currency';
 import { extractOrderToken, decodeOrder } from '../../codec/orderCodec';
 import type { Order, OrderStatus, PaymentStatus } from '../../model/types';
-import { nowIso } from '../../lib/id';
+import { nowIso, orderCode } from '../../lib/id';
 import { getBlob, putBlob } from '../../storage/stores';
 import { buildCustomerStatusMessage, buildWaShareUrl } from '../../whatsapp/waMessage';
 
@@ -73,7 +73,10 @@ export function OrdersView() {
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1">
                   <div className="font-medium">{o.customerName} <span className="text-neutral-500 text-sm font-normal">· {o.customerPhone}</span></div>
-                  <div className="text-xs text-neutral-500">{new Date(o.placedAt).toLocaleString('en-IN')}</div>
+                  <div className="text-xs text-neutral-500 flex items-center gap-2">
+                    <span className="font-mono px-1.5 py-0.5 rounded bg-neutral-100 text-neutral-700">#{orderCode(o.id)}</span>
+                    <span>{new Date(o.placedAt).toLocaleString('en-IN')}</span>
+                  </div>
                 </div>
                 <div className="flex items-start gap-2">
                   <PaymentProof orderId={o.id} onUploaded={() => updateOrderPayment(o.id, 'submitted')} />
@@ -112,7 +115,7 @@ export function OrdersView() {
                 <a className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl font-medium text-neutral-700 hover:bg-neutral-100"
                    href={`tel:${o.customerPhone}`}>Call</a>
                 <a className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl font-medium text-neutral-700 hover:bg-neutral-100"
-                   href={buildWaShareUrl(o.customerPhone, kitchen ? buildCustomerStatusMessage({ kitchenName: kitchen.name, order: o }) : '')}
+                   href={buildWaShareUrl(o.customerPhone, kitchen ? buildCustomerStatusMessage({ kitchenName: kitchen.name, order: o, code: orderCode(o.id) }) : '')}
                    target="_blank" rel="noreferrer">WhatsApp</a>
               </div>
             </Card>
