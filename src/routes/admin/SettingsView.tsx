@@ -1,8 +1,9 @@
 import { useRef, useState } from 'react';
 import { useAdminStore } from '../../state/adminStore';
-import { Button, Card, Input, Textarea } from '../../components/ui';
+import { Button, Card, Input, Pill, Textarea } from '../../components/ui';
 import { exportAll, importAll, type BackupBundle } from '../../storage/stores';
 import { requestPersistentStorage } from '../../storage/db';
+import { useSyncStore } from '../../state/syncStore';
 
 export function SettingsView() {
   const { kitchen, saveKitchen, hydrate } = useAdminStore();
@@ -74,6 +75,8 @@ export function SettingsView() {
         {importStatus && <div className="text-sm text-neutral-600">{importStatus}</div>}
       </Card>
 
+      <GoogleSyncCard />
+
       <Card className="space-y-3">
         <h2 className="font-medium">Persistent storage</h2>
         <p className="text-sm text-neutral-600">
@@ -89,5 +92,51 @@ export function SettingsView() {
         </div>
       </Card>
     </div>
+  );
+}
+
+function GoogleSyncCard() {
+  const { configured, connected, syncing, lastSyncAt, lastResult, lastError, sheetId, connect, disconnect, syncNow } = useSyncStore();
+  if (!configured) {
+    return (
+      <Card className="space-y-2">
+        <h2 className="font-medium">Google Drive sync</h2>
+        <p className="text-sm text-neutral-600">
+          Cross-device sync via Google Sheets is not configured on this build.
+          The deployment owner needs to set <code>VITE_GOOGLE_CLIENT_ID</code>.
+        </p>
+      </Card>
+    );
+  }
+  return (
+    <Card className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h2 className="font-medium">Google Drive sync</h2>
+        <Pill tone={connected ? 'green' : 'neutral'}>{connected ? 'connected' : 'not connected'}</Pill>
+      </div>
+      <p className="text-sm text-neutral-600">
+        Mirror your kitchen profile, items, meals, and orders to a Google Sheet in your own Drive. Sign in on a second device to keep both in sync. We never see your data — it lives in your Google account.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {!connected && <Button onClick={connect}>Connect Google account</Button>}
+        {connected && <Button onClick={syncNow} disabled={syncing}>{syncing ? 'Syncing…' : 'Sync now'}</Button>}
+        {connected && <Button variant="ghost" onClick={disconnect}>Disconnect</Button>}
+        {sheetId && (
+          <a className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl font-medium text-neutral-700 hover:bg-neutral-100"
+             href={`https://docs.google.com/spreadsheets/d/${sheetId}`} target="_blank" rel="noreferrer">
+            Open sheet ↗
+          </a>
+        )}
+      </div>
+      {lastSyncAt && (
+        <div className="text-xs text-neutral-500">
+          Last sync: {new Date(lastSyncAt).toLocaleString('en-IN')}
+          {lastResult && (
+            <> · pushed {lastResult.pushed.items + lastResult.pushed.meals + lastResult.pushed.orders} · pulled {lastResult.pulled.items + lastResult.pulled.meals + lastResult.pulled.orders}</>
+          )}
+        </div>
+      )}
+      {lastError && <div className="text-sm text-red-600">{lastError}</div>}
+    </Card>
   );
 }
