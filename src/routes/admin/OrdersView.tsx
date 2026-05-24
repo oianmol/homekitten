@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAdminStore } from '../../state/adminStore';
-import { Button, Card, Modal, Pill, Textarea } from '../../components/ui';
-import { paiseToRupees } from '../../lib/currency';
+import { Button, Card, Input, Modal, Pill, Textarea } from '../../components/ui';
+import { paiseToRupees, rupeesToPaise } from '../../lib/currency';
 import { extractOrderToken, decodeOrder } from '../../codec/orderCodec';
-import type { Order, OrderStatus, PaymentStatus } from '../../model/types';
+import type { Fulfillment, MealItem, Order, OrderLine, OrderStatus, PaymentStatus } from '../../model/types';
 import { nowIso, orderCode } from '../../lib/id';
 import { getBlob, putBlob } from '../../storage/stores';
 import { buildCustomerStatusMessage, buildWaShareUrl } from '../../whatsapp/waMessage';
@@ -25,10 +25,11 @@ const STATUS_TONE: Record<OrderStatus, 'neutral' | 'amber' | 'green' | 'red' | '
 };
 
 export function OrdersView() {
-  const { orders, kitchen, upsertOrder, updateOrderStatus, updateOrderPayment } = useAdminStore();
+  const { orders, kitchen, meals, upsertOrder, updateOrderStatus, updateOrderPayment, editOrder } = useAdminStore();
   const [importOpen, setImportOpen] = useState(false);
   const [paste, setPaste] = useState('');
   const [pasteError, setPasteError] = useState<string | null>(null);
+  const [editing, setEditing] = useState<Order | null>(null);
 
   async function importFromPaste() {
     setPasteError(null);
@@ -109,6 +110,9 @@ export function OrdersView() {
                   </Button>
                 )}
                 {o.status !== 'completed' && o.status !== 'cancelled' && (
+                  <Button variant="secondary" onClick={() => setEditing(o)}>Edit</Button>
+                )}
+                {o.status !== 'completed' && o.status !== 'cancelled' && (
                   <Button variant="ghost" onClick={() => updateOrderStatus(o.id, 'cancelled')}>Cancel</Button>
                 )}
                 <PaymentMenu current={o.paymentStatus} onSet={(p) => updateOrderPayment(o.id, p)} />
@@ -121,6 +125,15 @@ export function OrdersView() {
             </Card>
           ))}
         </div>
+      )}
+
+      {editing && (
+        <OrderEditor
+          order={editing}
+          meal={meals.find((m) => m.id === editing.mealWindowId) ?? null}
+          onClose={() => setEditing(null)}
+          onSave={async (edits) => { await editOrder(editing.id, edits); setEditing(null); }}
+        />
       )}
 
       <Modal open={importOpen} onClose={() => setImportOpen(false)} title="Import order">
@@ -137,6 +150,128 @@ export function OrdersView() {
         </div>
       </Modal>
     </div>
+  );
+}
+
+function OrderEditor({ order, meal, onClose, onSave }: {
+  order: Order;
+  meal: { items: MealItem[] } | null;
+  onClose: () => void;
+  onSave: (edits: { items: OrderLine[]; notes: string; fulfillment: Fulfillment; address: string; deliveryFeePaise: number }) => Promise<void>;
+}) {
+  const [lines, setLines] = useState<OrderLine[]>(order.items);
+  const [notes, setNotes] = useState(order.notes ?? '');
+  const [fulfillment, setFulfillment] = useState<Fulfillment>(order.fulfillment);
+  const [address, setAddress] = useState(order.address ?? '');
+  const [deliveryFee, setDeliveryFee] = useState((order.deliveryFeePaise / 100).toString());
+
+  const inOrder = useMemo(() => new Set(lines.map((l) => l.itemId)), [lines]);
+  const catalog = meal?.items ?? [];
+  const subtotal = lines.reduce((s, l) => s + l.lineTotalPaise, 0);
+  const total = subtotal + (fulfillment === 'delivery' ? rupeesToPaise(deliveryFee || '0') : 0);
+
+  function setQty(itemId: string, qty: number) {
+    setLines((s) => {
+      if (qty <= 0) return s.filter((l) => l.itemId !== itemId);
+      return s.map((l) => (l.itemId === itemId ? { ...l, qty, lineTotalPaise: qty * l.unitPricePaise } : l));
+    });
+  }
+
+  function addFromCatalog(mi: MealItem) {
+    setLines((s) => [...s, {
+      itemId: mi.itemId,
+      name: mi.name,
+      unit: mi.unit,
+      qty: 1,
+      unitPricePaise: mi.pricePaise,
+      lineTotalPaise: mi.pricePaise
+    }]);
+  }
+
+  async function save() {
+    await onSave({
+      items: lines,
+      notes,
+      fulfillment,
+      address,
+      deliveryFeePaise: fulfillment === 'delivery' ? rupeesToPaise(deliveryFee || '0') : 0
+    });
+  }
+
+  return (
+    <Modal open onClose={onClose} title={`Edit order #${orderCode(order.id)}`}>
+      <div className="space-y-3 max-h-[75vh] overflow-y-auto">
+        <div>
+          <div className="text-sm font-medium text-neutral-700 mb-1">Items</div>
+          {lines.length === 0 && <div className="text-sm text-neutral-500">No items — add from catalog below.</div>}
+          <ul className="space-y-1">
+            {lines.map((l) => (
+              <li key={l.itemId} className="flex items-center gap-2 text-sm">
+                <span className="flex-1">{l.name} {l.unit ? <span className="text-neutral-500">({l.unit})</span> : null}</span>
+                <span className="text-neutral-700">{paiseToRupees(l.unitPricePaise)}</span>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => setQty(l.itemId, l.qty - 1)} className="w-7 h-7 rounded bg-neutral-100 hover:bg-neutral-200">−</button>
+                  <span className="w-6 text-center">{l.qty}</span>
+                  <button onClick={() => setQty(l.itemId, l.qty + 1)} className="w-7 h-7 rounded bg-brand text-white hover:bg-brand-600">+</button>
+                </div>
+                <span className="w-16 text-right text-neutral-700">{paiseToRupees(l.lineTotalPaise)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {catalog.length > 0 && catalog.some((mi) => !inOrder.has(mi.itemId)) && (
+          <div>
+            <div className="text-sm font-medium text-neutral-700 mb-1">Add from menu</div>
+            <div className="grid gap-1">
+              {catalog.filter((mi) => !inOrder.has(mi.itemId)).map((mi) => (
+                <button key={mi.itemId} onClick={() => addFromCatalog(mi)}
+                  className="flex items-center gap-2 text-left p-2 rounded hover:bg-neutral-50 border border-neutral-200">
+                  <span className="flex-1">{mi.name} <span className="text-neutral-500 text-xs">{mi.unit}</span></span>
+                  <span className="text-sm text-neutral-700">{paiseToRupees(mi.pricePaise)}</span>
+                  <span className="text-xs text-brand-600">+ add</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div>
+          <span className="block text-sm font-medium text-neutral-700 mb-1">Fulfillment</span>
+          <div className="flex gap-2">
+            {(['pickup', 'delivery'] as Fulfillment[]).map((f) => (
+              <button key={f} onClick={() => setFulfillment(f)}
+                className={`flex-1 px-3 py-2 rounded-lg border text-sm ${fulfillment === f ? 'bg-brand text-white border-brand' : 'border-neutral-300'}`}>
+                {f}
+              </button>
+            ))}
+          </div>
+        </div>
+        {fulfillment === 'delivery' && (
+          <>
+            <Textarea label="Delivery address" rows={2} value={address} onChange={(e) => setAddress(e.target.value)} />
+            <Input label="Delivery fee (₹)" inputMode="decimal" value={deliveryFee} onChange={(e) => setDeliveryFee(e.target.value)} />
+          </>
+        )}
+        <Textarea label="Notes" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
+
+        <div className="text-sm border-t border-neutral-200 pt-2">
+          <div className="flex justify-between"><span>Subtotal</span><span>{paiseToRupees(subtotal)}</span></div>
+          {fulfillment === 'delivery' && <div className="flex justify-between"><span>Delivery</span><span>{paiseToRupees(rupeesToPaise(deliveryFee || '0'))}</span></div>}
+          <div className="flex justify-between font-semibold mt-1"><span>New total</span><span>{paiseToRupees(total)}</span></div>
+          {total !== order.totalPaise && (
+            <div className="text-xs text-amber-700 mt-1">
+              Was {paiseToRupees(order.totalPaise)} — difference {paiseToRupees(Math.abs(total - order.totalPaise))} {total > order.totalPaise ? 'to collect' : 'to refund'}.
+            </div>
+          )}
+        </div>
+
+        <div className="flex gap-2 pt-2">
+          <Button onClick={save} className="flex-1">Save changes</Button>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 

@@ -4,7 +4,9 @@ import { Card, Pill } from '../../components/ui';
 import { paiseToRupees } from '../../lib/currency';
 import { useAdminStore } from '../../state/adminStore';
 import { navigate } from '../../lib/hashRoute';
-import { nowIso } from '../../lib/id';
+import { nowIso, orderCode } from '../../lib/id';
+import { findKitchenContact } from '../../state/customerHistory';
+import { buildWaShareUrl } from '../../whatsapp/waMessage';
 import type { Order } from '../../model/types';
 
 export function OrderStatusView({ token }: { token: string }) {
@@ -104,9 +106,42 @@ export function OrderStatusView({ token }: { token: string }) {
         <div className="text-xs text-neutral-500 mt-1 capitalize">{ordSeed.fulfillment}{ordSeed.address ? ' · ' + ordSeed.address : ''}</div>
       </Card>
 
+      <RequestChange kitchenId={parsed.p.kitchenId} order={ordSeed} />
+
       <p className="text-sm text-neutral-500 text-center mt-4">
         For updates, message the kitchen on WhatsApp.
       </p>
     </div>
+  );
+}
+
+function RequestChange({ kitchenId, order }: { kitchenId: string; order: { id: string; customerName: string; items: { name: string; qty: number }[] } }) {
+  const contact = findKitchenContact(kitchenId);
+  if (!contact?.whatsappPhone) {
+    return (
+      <p className="mt-4 text-xs text-neutral-500 text-center">
+        Need to change something? Reply to the kitchen on WhatsApp where you got the menu link.
+      </p>
+    );
+  }
+  const code = orderCode(order.id);
+  const summary = order.items.map((l) => `${l.name} × ${l.qty}`).join(', ');
+  const body = [
+    `Hi! I'd like to modify my order ${code}.`,
+    '',
+    `Current: ${summary}`,
+    'Change request: ',
+    '(please tell us what you want to add / remove / change)'
+  ].join('\n');
+  const url = buildWaShareUrl(contact.whatsappPhone, body);
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noreferrer"
+      className="mt-4 block w-full text-center px-4 py-3 rounded-xl font-medium bg-emerald-600 text-white hover:bg-emerald-700"
+    >
+      Request a change on WhatsApp
+    </a>
   );
 }

@@ -17,6 +17,21 @@ async function adjustMealQty(order: Order, sign: -1 | 1): Promise<void> {
   if (changed) await stores.putMeal({ ...meal, items });
 }
 
+// Apply line-level delta: positive numbers consumed extra stock,
+// negative numbers returned stock.
+async function applyLineDeltas(mealId: string, deltas: Map<string, number>): Promise<void> {
+  if (deltas.size === 0) return;
+  const meal = (await stores.listMeals()).find((m) => m.id === mealId);
+  if (!meal) return;
+  const items = meal.items.map((mi) => {
+    if (mi.availableQty == null) return mi;
+    const delta = deltas.get(mi.itemId) ?? 0;
+    if (delta === 0) return mi;
+    return { ...mi, availableQty: Math.max(0, mi.availableQty - delta) };
+  });
+  await stores.putMeal({ ...meal, items });
+}
+
 interface AdminState {
   hydrated: boolean;
   kitchen: Kitchen | null;
@@ -34,6 +49,7 @@ interface AdminState {
   upsertOrder: (o: Order) => Promise<{ added: boolean }>;
   updateOrderStatus: (id: string, status: Order['status']) => Promise<void>;
   updateOrderPayment: (id: string, paymentStatus: Order['paymentStatus']) => Promise<void>;
+  editOrder: (id: string, edits: { items?: Order['items']; notes?: string | undefined; fulfillment?: Order['fulfillment']; address?: string | undefined; deliveryFeePaise?: number }) => Promise<void>;
 }
 
 export const useAdminStore = create<AdminState>((set, get) => ({
@@ -112,5 +128,45 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     const updated = { ...o, paymentStatus };
     await stores.putOrder(updated);
     set({ orders: get().orders.map((x) => (x.id === id ? updated : x)) });
+  },
+
+  editOrder: async (id, edits) => {
+    const o = await stores.getOrder(id);
+    if (!o) return;
+
+    const nextItems = edits.items ?? o.items;
+    const nextFulfillment = edits.fulfillment ?? o.fulfillment;
+    const nextDeliveryFee = edits.deliveryFeePaise ?? (nextFulfillment === 'delivery' ? o.deliveryFeePaise : 0);
+    const subtotal = nextItems.reduce((s, l) => s + l.lineTotalPaise, 0);
+    const total = subtotal + nextDeliveryFee;
+
+    const updated: Order = {
+      ...o,
+      items: nextItems,
+      notes: edits.notes !== undefined ? (edits.notes.trim() || undefined) : o.notes,
+      fulfillment: nextFulfillment,
+      address: edits.address !== undefined ? (edits.address.trim() || undefined) : o.address,
+      deliveryFeePaise: nextDeliveryFee,
+      subtotalPaise: subtotal,
+      totalPaise: total
+    };
+
+    // Adjust meal qty by line deltas only if order is active (not cancelled).
+    if (o.status !== 'cancelled' && edits.items) {
+      const deltas = new Map<string, number>();
+      const prevByItem = new Map(o.items.map((l) => [l.itemId, l.qty]));
+      const nextByItem = new Map(nextItems.map((l) => [l.itemId, l.qty]));
+      const ids = new Set<string>([...prevByItem.keys(), ...nextByItem.keys()]);
+      for (const itemId of ids) {
+        const prev = prevByItem.get(itemId) ?? 0;
+        const next = nextByItem.get(itemId) ?? 0;
+        if (next !== prev) deltas.set(itemId, next - prev);
+      }
+      await applyLineDeltas(o.mealWindowId, deltas);
+    }
+
+    await stores.putOrder(updated);
+    const [orders, meals] = await Promise.all([stores.listOrders(), stores.listMeals()]);
+    set({ orders, meals });
   }
 }));
