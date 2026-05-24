@@ -10,6 +10,7 @@ import { siteRoot } from '../../lib/siteRoot';
 import type { Fulfillment, MealItem, MenuPayload, OrderPayload } from '../../model/types';
 import { appendHistory, readHistory, rememberKitchen, type HistoryEntry } from '../../state/customerHistory';
 import { navigate } from '../../lib/hashRoute';
+import { useInstall } from '../../lib/useInstall';
 
 const REPEAT_KEY = 'hk-customer';
 
@@ -102,7 +103,10 @@ function MenuContent({ payload }: { payload: MenuPayload }) {
               <div className="text-sm text-neutral-600 truncate">{kitchen.address}</div>
             </div>
           </div>
-          <button onClick={() => navigate('/me')} className="text-xs text-neutral-500 hover:text-neutral-700 shrink-0 mt-1">My orders</button>
+          <div className="flex flex-col items-end gap-1 shrink-0 mt-1">
+            <button onClick={() => navigate('/me')} className="text-xs text-neutral-500 hover:text-neutral-700">My orders</button>
+            <AddToHomeButton kitchenName={kitchen.name} />
+          </div>
         </div>
         <div className="mt-3 flex items-center gap-2 flex-wrap text-sm">
           <Pill tone={isOpen && !cutoffPassed ? 'green' : 'red'}>
@@ -319,6 +323,35 @@ function CheckoutModal({ payload, onClose, onPlaced }: {
         </div>
       </div>
     </Modal>
+  );
+}
+
+function AddToHomeButton({ kitchenName }: { kitchenName: string }) {
+  const { installed, canPrompt, isIosNonStandalone, showIosHint, dismissIosHint, promptInstall } = useInstall();
+  if (installed) return null;
+  if (!canPrompt && !isIosNonStandalone) return null;
+  return (
+    <>
+      <button
+        onClick={() => promptInstall()}
+        className="text-xs px-2 py-1 rounded-full bg-brand text-white hover:bg-brand-600"
+        title={`Add ${kitchenName} to your home screen`}
+      >
+        + Home screen
+      </button>
+      {showIosHint && (
+        <Modal open onClose={dismissIosHint} title="Add to Home Screen">
+          <p className="text-sm text-neutral-700">
+            On iPhone, tap the <span className="font-medium">Share</span> button in Safari's bottom bar,
+            then choose <span className="font-medium">Add to Home Screen</span>. The current menu will
+            be saved as an app icon.
+          </p>
+          <div className="mt-3 flex justify-end">
+            <Button variant="ghost" onClick={dismissIosHint}>Got it</Button>
+          </div>
+        </Modal>
+      )}
+    </>
   );
 }
 
