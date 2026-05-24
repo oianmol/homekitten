@@ -7,11 +7,11 @@ const sampleMenu: MenuPayload = {
   v: 1,
   kitchen: {
     id: 'k-1',
-    slug: 'shriiji',
-    name: 'Shriiji Kitchen',
-    upiId: 'akanksha@okhdfcbank',
-    whatsappPhone: '917455825552',
-    address: 'Tower 3, Flat 607',
+    slug: 'sample',
+    name: 'Sample Kitchen',
+    upiId: 'sample@bank',
+    whatsappPhone: '919876543210',
+    address: 'Sample Building, Flat 101',
     themeColor: '#f97316'
   },
   meal: {

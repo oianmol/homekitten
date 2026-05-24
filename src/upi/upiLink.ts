@@ -1,5 +1,5 @@
 export interface UpiLinkArgs {
-  payeeVpa: string;          // e.g. akanksha@okhdfcbank
+  payeeVpa: string;          // e.g. name@bank
   payeeName: string;
   amountPaise: number;
   transactionNote?: string;  // e.g. "ORDER ABC12"

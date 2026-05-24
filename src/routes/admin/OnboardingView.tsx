@@ -40,11 +40,11 @@ export function OnboardingView() {
       <h1 className="text-2xl font-bold text-center mb-1">Set up your kitchen</h1>
       <p className="text-center text-neutral-600 mb-6 text-sm">All data lives on this device. Export anytime.</p>
       <Card className="space-y-4">
-        <Input label="Kitchen name *" placeholder="Shriiji Kitchen" value={name} onChange={(e) => setName(e.target.value)} />
-        <Input label="Slug (label)" placeholder="shriiji" value={slug} onChange={(e) => setSlug(e.target.value)} hint="Used in WhatsApp messages." />
-        <Input label="WhatsApp phone (with country code) *" placeholder="+91 74558 25552" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} />
-        <Input label="UPI ID *" placeholder="yourname@okhdfcbank" value={upi} onChange={(e) => setUpi(e.target.value)} />
-        <Textarea label="Address *" placeholder="Tower 3, Flat 607" rows={2} value={address} onChange={(e) => setAddress(e.target.value)} />
+        <Input label="Kitchen name *" placeholder="Your kitchen name" value={name} onChange={(e) => setName(e.target.value)} />
+        <Input label="Slug (label)" placeholder="my-kitchen" value={slug} onChange={(e) => setSlug(e.target.value)} hint="Used in WhatsApp messages." />
+        <Input label="WhatsApp phone (with country code) *" placeholder="+91 98765 43210" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} />
+        <Input label="UPI ID *" placeholder="name@bank" value={upi} onChange={(e) => setUpi(e.target.value)} />
+        <Textarea label="Address *" placeholder="Building, Flat / Door number" rows={2} value={address} onChange={(e) => setAddress(e.target.value)} />
         <Input label="Logo image URL (optional)" placeholder="https://…/logo.png" value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} />
         <div>
           <span className="block text-sm font-medium text-neutral-700 mb-1">Brand color</span>

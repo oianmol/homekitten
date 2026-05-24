@@ -23,7 +23,7 @@ export interface Kitchen {
   id: UUID;
   slug: string;                  // label only; not enforced unique globally
   name: string;
-  upiId: string;                 // e.g. "akanksha@okhdfcbank"
+  upiId: string;                 // e.g. "name@bank"
   whatsappPhone: string;         // digits only with country code
   address: string;
   logoUrl?: string;
