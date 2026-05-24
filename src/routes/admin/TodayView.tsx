@@ -7,6 +7,7 @@ import type { Item, MealItem, MealType, MealWindow, MenuPayload } from '../../mo
 import { encodeMenu, buildMenuUrl } from '../../codec/menuCodec';
 import { buildWaMenuText, buildWaShareUrl } from '../../whatsapp/waMessage';
 import { QrImage } from '../../components/QrImage';
+import { siteRoot } from '../../lib/siteRoot';
 
 export function TodayView() {
   const { kitchen, items, meals, saveMeal, deleteMeal } = useAdminStore();
@@ -123,7 +124,7 @@ function MealCard({ meal, onEdit, onClose, onReopen, compact }: {
 function ShareMenuModal({ meal, onClose }: { meal: MealWindow; onClose: () => void }) {
   const { kitchen } = useAdminStore();
   if (!kitchen) return null;
-  const origin = window.location.origin;
+  const origin = siteRoot();
   const payload: MenuPayload = {
     v: 1,
     kitchen: {

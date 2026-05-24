@@ -6,6 +6,7 @@ import { paiseToRupees } from '../../lib/currency';
 import { uuid, nowIso } from '../../lib/id';
 import { buildUpiLink } from '../../upi/upiLink';
 import { buildWaOrderText, buildWaShareUrl } from '../../whatsapp/waMessage';
+import { siteRoot } from '../../lib/siteRoot';
 import type { Fulfillment, MealItem, MenuPayload, OrderPayload } from '../../model/types';
 
 const REPEAT_KEY = 'hk-customer';
@@ -204,7 +205,7 @@ function CheckoutModal({ payload, onClose, onPlaced }: {
         placedAt: nowIso()
       }
     };
-    const origin = window.location.origin;
+    const origin = siteRoot();
     const text = buildWaOrderText({ origin, kitchenName: payload.kitchen.name, payload: orderPayload });
     const waUrl = buildWaShareUrl(payload.kitchen.whatsappPhone, text);
     const upiUrl = buildUpiLink({
@@ -265,7 +266,7 @@ function PlacedView({ placed, total, onPlaced, onClose }: {
 }) {
   const [copied, setCopied] = useState<'text' | 'url' | null>(null);
   function copy(kind: 'text' | 'url') {
-    const value = kind === 'text' ? placed.text : `${window.location.origin}/#o=HK1:${placed.orderId}`;
+    const value = kind === 'text' ? placed.text : `${siteRoot()}/#o=HK1:${placed.orderId}`;
     navigator.clipboard.writeText(kind === 'text' ? placed.text : value).then(() => {
       setCopied(kind);
       window.setTimeout(() => setCopied(null), 1500);
