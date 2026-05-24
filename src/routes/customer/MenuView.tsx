@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useCartStore } from '../../state/cartStore';
 import { decodeMenu } from '../../codec/menuCodec';
 import { Button, Card, Input, Modal, Pill, Textarea } from '../../components/ui';
@@ -8,6 +8,7 @@ import { buildUpiLink } from '../../upi/upiLink';
 import { buildWaOrderText, buildWaShareUrl } from '../../whatsapp/waMessage';
 import { siteRoot } from '../../lib/siteRoot';
 import type { Fulfillment, MealItem, MenuPayload, OrderPayload } from '../../model/types';
+import { appendHistory, readHistory, type HistoryEntry } from '../../state/customerHistory';
 
 const REPEAT_KEY = 'hk-customer';
 
@@ -50,6 +51,24 @@ function MenuContent({ payload }: { payload: MenuPayload }) {
   const clear = useCartStore((s) => s.clear);
 
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [reorderNote, setReorderNote] = useState<string | null>(null);
+  useEffect(() => { setHistory(readHistory(kitchen.id)); }, [kitchen.id]);
+
+  function reorder(entry: HistoryEntry) {
+    clear();
+    const skipped: string[] = [];
+    for (const l of entry.lines) {
+      const mi = meal.items.find((m) => m.itemId === l.itemId);
+      if (!mi) { skipped.push(l.name); continue; }
+      if (mi.availableQty != null && mi.availableQty <= 0) { skipped.push(`${l.name} (sold out)`); continue; }
+      const cap = mi.availableQty ?? Infinity;
+      const qty = Math.min(l.qty, cap);
+      for (let i = 0; i < qty; i++) addOne(mi);
+    }
+    setReorderNote(skipped.length ? `Reordered. Skipped: ${skipped.join(', ')}` : 'Reordered from your last visit.');
+    window.setTimeout(() => setReorderNote(null), 4000);
+  }
 
   const isOpen = meal.status === 'open';
   const cutoff = new Date(meal.orderCutoffAt);
@@ -80,6 +99,28 @@ function MenuContent({ payload }: { payload: MenuPayload }) {
         </div>
         {meal.notes && <div className="mt-2 text-sm text-neutral-700">{meal.notes}</div>}
       </header>
+
+      {history.length > 0 && (
+        <section className="max-w-2xl mx-auto px-4 pb-2">
+          <div className="text-xs uppercase tracking-wide text-neutral-500 mb-1">Your past orders</div>
+          <div className="flex gap-2 overflow-x-auto -mx-1 px-1">
+            {history.slice(0, 5).map((h) => (
+              <button
+                key={h.id}
+                onClick={() => reorder(h)}
+                className="shrink-0 min-w-[180px] text-left bg-white border border-neutral-200 rounded-xl p-3 hover:border-brand"
+                disabled={!isOpen || cutoffPassed}
+                title="Tap to reorder these items"
+              >
+                <div className="text-sm font-medium truncate">{h.lines.map((l) => l.name).join(', ')}</div>
+                <div className="text-xs text-neutral-500 mt-1">{paiseToRupees(h.totalPaise)} · {new Date(h.placedAt).toLocaleDateString('en-IN')}</div>
+                <div className="text-xs text-brand-600 mt-1">↻ Reorder</div>
+              </button>
+            ))}
+          </div>
+          {reorderNote && <div className="mt-2 text-xs text-emerald-700">{reorderNote}</div>}
+        </section>
+      )}
 
       <main className="max-w-2xl mx-auto px-4 space-y-2">
         {meal.items.map((it) => (
@@ -205,6 +246,16 @@ function CheckoutModal({ payload, onClose, onPlaced }: {
         placedAt: nowIso()
       }
     };
+    appendHistory({
+      id: orderId,
+      kitchenId: payload.kitchen.id,
+      kitchenName: payload.kitchen.name,
+      mealId: payload.meal.id,
+      mealLabel: `${payload.meal.mealType} · ${payload.meal.date}`,
+      placedAt: orderPayload.order.placedAt,
+      totalPaise: total,
+      lines: lines.map((l) => ({ itemId: l.itemId, name: l.name, unit: l.unit, qty: l.qty, unitPricePaise: l.unitPricePaise }))
+    });
     const origin = siteRoot();
     const text = buildWaOrderText({ origin, kitchenName: payload.kitchen.name, payload: orderPayload });
     const waUrl = buildWaShareUrl(payload.kitchen.whatsappPhone, text);

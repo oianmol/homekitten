@@ -2,6 +2,21 @@ import { create } from 'zustand';
 import type { Kitchen, Item, MealWindow, Order } from '../model/types';
 import * as stores from '../storage/stores';
 
+// Sign: -1 to decrement (new order), +1 to restore (cancellation).
+async function adjustMealQty(order: Order, sign: -1 | 1): Promise<void> {
+  const meal = (await stores.listMeals()).find((m) => m.id === order.mealWindowId);
+  if (!meal) return;
+  let changed = false;
+  const items = meal.items.map((mi) => {
+    if (mi.availableQty == null) return mi;
+    const line = order.items.find((l) => l.itemId === mi.itemId);
+    if (!line) return mi;
+    changed = true;
+    return { ...mi, availableQty: Math.max(0, mi.availableQty + sign * line.qty) };
+  });
+  if (changed) await stores.putMeal({ ...meal, items });
+}
+
 interface AdminState {
   hydrated: boolean;
   kitchen: Kitchen | null;
@@ -69,17 +84,26 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   upsertOrder: async (o) => {
     const existing = await stores.getOrder(o.id);
     await stores.putOrder(o);
-    const orders = await stores.listOrders();
-    set({ orders });
+    // First time we see this order and it's active → decrement meal qty.
+    if (!existing && o.status !== 'cancelled') {
+      await adjustMealQty(o, -1);
+    }
+    const [orders, meals] = await Promise.all([stores.listOrders(), stores.listMeals()]);
+    set({ orders, meals });
     return { added: !existing };
   },
 
   updateOrderStatus: async (id, status) => {
     const o = await stores.getOrder(id);
     if (!o) return;
+    const wasActive = o.status !== 'cancelled';
+    const willBeActive = status !== 'cancelled';
     const updated = { ...o, status };
     await stores.putOrder(updated);
-    set({ orders: get().orders.map((x) => (x.id === id ? updated : x)) });
+    if (wasActive && !willBeActive) await adjustMealQty(o, +1);       // cancel → restore
+    else if (!wasActive && willBeActive) await adjustMealQty(o, -1);  // un-cancel → decrement
+    const meals = await stores.listMeals();
+    set({ orders: get().orders.map((x) => (x.id === id ? updated : x)), meals });
   },
 
   updateOrderPayment: async (id, paymentStatus) => {

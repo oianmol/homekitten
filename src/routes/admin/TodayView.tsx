@@ -8,14 +8,16 @@ import { encodeMenu, buildMenuUrl } from '../../codec/menuCodec';
 import { buildWaMenuText, buildWaShareUrl } from '../../whatsapp/waMessage';
 import { QrImage } from '../../components/QrImage';
 import { siteRoot } from '../../lib/siteRoot';
+import type { Order } from '../../model/types';
 
 export function TodayView() {
-  const { kitchen, items, meals, saveMeal, deleteMeal } = useAdminStore();
-  const today = new Date().toISOString().slice(0, 10);
+  const { kitchen, items, meals, orders, saveMeal, deleteMeal } = useAdminStore();
+  const today = localDateIso();
   const [editing, setEditing] = useState<MealWindow | null>(null);
 
   const todayMeals = useMemo(() => meals.filter((m) => m.date === today), [meals, today]);
   const upcomingOrPast = useMemo(() => meals.filter((m) => m.date !== today).slice(0, 5), [meals, today]);
+  const insights = useMemo(() => computeInsights(orders, today), [orders, today]);
 
   if (!kitchen) return null;
 
@@ -30,6 +32,9 @@ export function TodayView() {
           + New meal
         </Button>
       </div>
+
+      <InsightsCard insights={insights} />
+
 
       {items.filter((i) => i.isActive).length === 0 && (
         <Card>
@@ -320,4 +325,81 @@ function MealEditor({ meal, items, onClose, onSave, onDelete }: {
 
 function stripSec(iso: string): string {
   return iso ? iso.slice(0, 16) : '';
+}
+
+function localDateIso(): string {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+interface Insights {
+  orderCount: number;
+  cancelledCount: number;
+  revenuePaise: number;
+  topItem: { name: string; qty: number } | null;
+  paidRevenuePaise: number;
+  pendingPaymentCount: number;
+}
+
+function computeInsights(orders: Order[], today: string): Insights {
+  const todays = orders.filter((o) => isToday(o.placedAt, today));
+  const active = todays.filter((o) => o.status !== 'cancelled');
+  const cancelledCount = todays.length - active.length;
+  const revenuePaise = active.reduce((s, o) => s + o.totalPaise, 0);
+  const paidRevenuePaise = active.filter((o) => o.paymentStatus === 'verified').reduce((s, o) => s + o.totalPaise, 0);
+  const pendingPaymentCount = active.filter((o) => o.paymentStatus !== 'verified').length;
+  const tally = new Map<string, { name: string; qty: number }>();
+  for (const o of active) {
+    for (const l of o.items) {
+      const cur = tally.get(l.itemId) ?? { name: l.name, qty: 0 };
+      cur.qty += l.qty;
+      tally.set(l.itemId, cur);
+    }
+  }
+  let topItem: Insights['topItem'] = null;
+  for (const v of tally.values()) {
+    if (!topItem || v.qty > topItem.qty) topItem = v;
+  }
+  return { orderCount: active.length, cancelledCount, revenuePaise, topItem, paidRevenuePaise, pendingPaymentCount };
+}
+
+function isToday(iso: string, today: string): boolean {
+  // Match on local-date prefix of placedAt's local rendering.
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso.startsWith(today);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}` === today;
+}
+
+function InsightsCard({ insights }: { insights: Insights }) {
+  if (insights.orderCount === 0 && insights.cancelledCount === 0) return null;
+  return (
+    <Card>
+      <div className="grid grid-cols-3 gap-3 text-center">
+        <Stat label="Orders" value={String(insights.orderCount)} sub={insights.cancelledCount > 0 ? `${insights.cancelledCount} cancelled` : undefined} />
+        <Stat label="Revenue" value={paiseToRupees(insights.revenuePaise)} sub={`paid ${paiseToRupees(insights.paidRevenuePaise)}`} />
+        <Stat label="Top item" value={insights.topItem?.name ?? '—'} sub={insights.topItem ? `${insights.topItem.qty} sold` : undefined} />
+      </div>
+      {insights.pendingPaymentCount > 0 && (
+        <div className="mt-3 text-xs text-amber-700">
+          {insights.pendingPaymentCount} order{insights.pendingPaymentCount === 1 ? '' : 's'} awaiting payment verification.
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <div>
+      <div className="text-xs uppercase tracking-wide text-neutral-500">{label}</div>
+      <div className="font-semibold text-lg leading-tight">{value}</div>
+      {sub && <div className="text-xs text-neutral-500">{sub}</div>}
+    </div>
+  );
 }

@@ -4,13 +4,22 @@ import { CheckoutView } from './routes/customer/CheckoutView';
 import { OrderStatusView } from './routes/customer/OrderStatusView';
 import { AdminShell } from './routes/admin/AdminShell';
 import { Landing } from './routes/Landing';
+import { InstallPrompt } from './components/InstallPrompt';
 
 export default function App() {
   const route = useHashRoute();
 
-  if (route.kind === 'menu') return <MenuView token={route.token} />;
-  if (route.kind === 'order') return <OrderStatusView token={route.token} />;
-  if (route.kind === 'checkout') return <CheckoutView />;
-  if (route.kind === 'admin') return <AdminShell subPath={route.subPath} />;
-  return <Landing />;
+  let body: JSX.Element;
+  if (route.kind === 'menu') body = <MenuView token={route.token} />;
+  else if (route.kind === 'order') body = <OrderStatusView token={route.token} />;
+  else if (route.kind === 'checkout') body = <CheckoutView />;
+  else if (route.kind === 'admin') body = <AdminShell subPath={route.subPath} />;
+  else body = <Landing />;
+
+  return (
+    <>
+      {body}
+      <InstallPrompt />
+    </>
+  );
 }
