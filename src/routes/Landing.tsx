@@ -11,21 +11,23 @@ export function Landing() {
         </p>
       </header>
 
-      <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
+      <div className="mt-8 flex flex-col sm:flex-row items-stretch justify-center gap-3">
         <button
           onClick={() => navigate('/admin')}
           className="px-6 py-3 rounded-xl bg-brand text-white font-medium hover:bg-brand-600 w-full sm:w-auto"
         >
           Set up my kitchen
         </button>
-        <a
-          href="#"
-          onClick={(e) => { e.preventDefault(); navigate('/admin'); }}
-          className="text-sm text-neutral-500 hover:text-neutral-700"
+        <button
+          onClick={() => navigate('/me')}
+          className="px-6 py-3 rounded-xl bg-white border border-neutral-300 text-neutral-900 font-medium hover:bg-neutral-50 w-full sm:w-auto"
         >
-          Already set up? Open admin →
-        </a>
+          I am a customer
+        </button>
       </div>
+      <p className="mt-3 text-center text-xs text-neutral-500">
+        Customer? Use the menu link your kitchen shared, or tap above to see your past orders.
+      </p>
 
       <section className="mt-12">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-500 text-center">
@@ -51,16 +53,9 @@ export function Landing() {
         <Bullet>Free to use. No accounts, no monthly fees, no commissions.</Bullet>
       </section>
 
-      <footer className="mt-12 border-t border-neutral-200 pt-6 text-center text-sm text-neutral-500 space-y-2">
+      <footer className="mt-12 border-t border-neutral-200 pt-6 text-center text-sm text-neutral-500">
         <p>
-          <span className="font-medium text-neutral-700">Just here to order food?</span>{' '}
-          Open the menu link your kitchen shared with you — this page is for kitchen owners.
-        </p>
-        <p>
-          Already ordered before?{' '}
-          <a href="#/me" onClick={(e) => { e.preventDefault(); navigate('/me'); }} className="text-brand-600 hover:text-brand-700">
-            See your past orders →
-          </a>
+          We don't list kitchens here — they share their own menu link with you on WhatsApp.
         </p>
       </footer>
     </div>
